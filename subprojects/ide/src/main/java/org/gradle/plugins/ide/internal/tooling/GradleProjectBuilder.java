@@ -26,6 +26,7 @@ import org.gradle.tooling.internal.gradle.DefaultProjectIdentifier;
 import org.gradle.tooling.provider.model.ToolingModelBuilder;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.SortedSet;
 
@@ -65,7 +66,13 @@ public class GradleProjectBuilder implements ToolingModelBuilder {
                 .setChildren(children);
 
         gradleProject.getBuildScript().setSourceFile(project.getBuildFile());
-        gradleProject.setTasks(tasks(gradleProject, (TaskContainerInternal) project.getTasks()));
+
+        String projectOptions = System.getProperty("GradleProjectOptions", "unmodified");
+        List<LaunchableGradleTask> tasks = tasks(gradleProject, (TaskContainerInternal) project.getTasks(), projectOptions);
+
+        if (!"skip_task_serialization".equals(projectOptions)) {
+            gradleProject.setTasks(tasks);
+        }
 
         for (DefaultGradleProject child : children) {
             child.setParent(gradleProject);
@@ -74,7 +81,11 @@ public class GradleProjectBuilder implements ToolingModelBuilder {
         return gradleProject;
     }
 
-    private static List<LaunchableGradleTask> tasks(DefaultGradleProject owner, TaskContainerInternal tasks) {
+    private static List<LaunchableGradleTask> tasks(DefaultGradleProject owner, TaskContainerInternal tasks, String projectOptions) {
+        if ("skip_task_load".equals(projectOptions)) {
+            return Collections.emptyList();
+        }
+
         tasks.realize();
         SortedSet<String> taskNames = tasks.getNames();
         List<LaunchableGradleTask> out = new ArrayList<LaunchableGradleTask>(taskNames.size());

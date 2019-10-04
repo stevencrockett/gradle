@@ -1,3 +1,22 @@
 {
-    "acceptedApiChanges": []
+    "acceptedApiChanges": [
+        {
+            "type": "org.gradle.kotlin.dsl.InitScriptApi",
+            "member": "Class org.gradle.kotlin.dsl.InitScriptApi",
+            "acceptation": "[ADD YOUR CUSTOM REASON HERE]",
+            "changes": [
+                "org.gradle.kotlin.dsl.support.delegates.GradleDelegate.beforeSettings(groovy.lang.Closure)",
+                "org.gradle.kotlin.dsl.support.delegates.GradleDelegate.beforeSettings(org.gradle.api.Action)"
+            ]
+        },
+        {
+    "type": "org.gradle.kotlin.dsl.KotlinScriptTemplate",
+    "member": "Class org.gradle.kotlin.dsl.KotlinScriptTemplate",
+    "acceptation": "[ADD YOUR CUSTOM REASON HERE]",
+    "changes": [
+        "Interface has been added"
+    ]
+}
+
+    ]
 }

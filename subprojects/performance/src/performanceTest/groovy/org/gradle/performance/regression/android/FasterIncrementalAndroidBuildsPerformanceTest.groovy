@@ -29,6 +29,7 @@ import static org.gradle.performance.regression.android.IncrementalAndroidTestPr
 @Category(PerformanceExperiment)
 class FasterIncrementalAndroidBuildsPerformanceTest extends AbstractCrossBuildPerformanceTest {
     private static final String INSTANT_EXECUTION_PROPERTY = "-Dorg.gradle.unsafe.instant-execution"
+    private static final String PARTIAL_VFS_INVALIDATION_PROPERTY = "-Dorg.gradle.unsafe.partial-vfs-invalidation"
 
     @Unroll
     def "faster incremental build on #testProject (build comparison)"() {
@@ -42,18 +43,15 @@ class FasterIncrementalAndroidBuildsPerformanceTest extends AbstractCrossBuildPe
             testProject.configureForAbiChange(it)
             displayName("abi change")
         }
-        if (testProject != SANTA_TRACKER_KOTLIN) {
-            // Kotlin is not supported for instant execution
-            runner.buildSpec {
-                testProject.configureForNonAbiChange(it)
-                configureFastIncrementalBuild(it)
-                displayName("instant non abi change")
-            }
-            runner.buildSpec {
-                testProject.configureForAbiChange(it)
-                configureFastIncrementalBuild(it)
-                displayName("instant abi change")
-            }
+        runner.buildSpec {
+            testProject.configureForNonAbiChange(it)
+            configureFastIncrementalBuild(it, testProject)
+            displayName("faster non abi change")
+        }
+        runner.buildSpec {
+            testProject.configureForAbiChange(it)
+            configureFastIncrementalBuild(it, testProject)
+            displayName("faster abi change")
         }
 
         when:
@@ -72,7 +70,11 @@ class FasterIncrementalAndroidBuildsPerformanceTest extends AbstractCrossBuildPe
         }
     }
 
-    def configureFastIncrementalBuild(GradleBuildExperimentSpec.GradleBuilder builder) {
-        builder.invocation.args(INSTANT_EXECUTION_PROPERTY)
+    def configureFastIncrementalBuild(GradleBuildExperimentSpec.GradleBuilder builder, IncrementalAndroidTestProject testProject) {
+        if (testProject != SANTA_TRACKER_KOTLIN) {
+            // Kotlin is not supported for instant execution
+            builder.invocation.args(INSTANT_EXECUTION_PROPERTY)
+        }
+        builder.invocation.args(PARTIAL_VFS_INVALIDATION_PROPERTY)
     }
 }

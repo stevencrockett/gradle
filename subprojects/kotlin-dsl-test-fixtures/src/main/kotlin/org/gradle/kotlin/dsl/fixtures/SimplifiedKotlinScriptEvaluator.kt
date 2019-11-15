@@ -41,6 +41,7 @@ import org.gradle.internal.service.ServiceRegistry
 import org.gradle.kotlin.dsl.execution.Interpreter
 import org.gradle.kotlin.dsl.execution.ProgramId
 import org.gradle.kotlin.dsl.execution.ProgramTarget
+import org.gradle.kotlin.dsl.provider.CompiledScript
 
 import org.gradle.kotlin.dsl.support.ImplicitImports
 import org.gradle.kotlin.dsl.support.KotlinScriptHost
@@ -133,10 +134,10 @@ class SimplifiedKotlinScriptEvaluator(
         override fun serviceRegistryFor(programTarget: ProgramTarget, target: Any): ServiceRegistry =
             serviceRegistry
 
-        override fun cachedClassFor(programId: ProgramId): Class<*>? =
+        override fun cachedClassFor(programId: ProgramId): CompiledScript? =
             null
 
-        override fun cache(specializedProgram: Class<*>, programId: ProgramId) = Unit
+        override fun cache(specializedProgram: CompiledScript, programId: ProgramId) = Unit
 
         override fun cachedDirFor(
             scriptHost: KotlinScriptHost<*>,
@@ -159,10 +160,11 @@ class SimplifiedKotlinScriptEvaluator(
         override fun startCompilerOperation(description: String): AutoCloseable =
             mock()
 
-        override fun loadClassInChildScopeOf(classLoaderScope: ClassLoaderScope, childScopeId: String, location: File, className: String, accessorsClassPath: ClassPath?): Class<*> =
-            classLoaderFor(scriptRuntimeClassPath + DefaultClassPath.of(location))
-                .also { classLoaders += it }
-                .loadClass(className)
+        override fun loadClassInChildScopeOf(classLoaderScope: ClassLoaderScope, childScopeId: String, location: File, className: String, accessorsClassPath: ClassPath?): CompiledScript =
+            DummyCompiledScript(
+                classLoaderFor(scriptRuntimeClassPath + DefaultClassPath.of(location))
+                    .also { classLoaders += it }
+                    .loadClass(className))
 
         override fun applyPluginsTo(scriptHost: KotlinScriptHost<*>, pluginRequests: PluginRequests) = Unit
 
@@ -180,6 +182,12 @@ class SimplifiedKotlinScriptEvaluator(
 
         override val implicitImports: List<String>
             get() = ImplicitImports(DefaultImportsReader()).list
+    }
+}
+
+
+class DummyCompiledScript(override val programFor: Class<*>) : CompiledScript {
+    override fun onReuse() {
     }
 }
 

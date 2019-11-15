@@ -26,8 +26,8 @@ configurations.all {
 //tasks.remove(jar)
 
 tasks.withType(AbstractArchiveTask).configureEach {
-    baseName "gradle"
-    version = baseVersion
+    archiveBaseName = "gradle"
+    archiveVersion = baseVersion
 
     // The CI server looks for the distributions at this location
     destinationDirectory.set(rootProject.layout.buildDirectory.dir(rootProject.distsDirName))
@@ -51,6 +51,15 @@ configurations {
         extendsFrom(gradleRuntimeSource)
         attributes.attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
         attributes.attribute(Attribute.of("org.gradle.api", String), "build-receipt")
+    }
+
+    gradleSamples {
+        visible = false
+        canBeResolved = true
+        canBeConsumed = false
+        extendsFrom(gradleDocumentation)
+        attributes.attribute(Usage.USAGE_ATTRIBUTE, project.objects.named(Usage, "docs"))
+        attributes.attribute(Attribute.of("type", String), "samples")
     }
 
     gradleFullDocs {
@@ -84,7 +93,7 @@ dependencies {
     minimalRuntime(project(":platformJvm"))
 
     testImplementation(testFixtures(project(":core")))
-    
+
     integTestImplementation(project(":baseServices"))
     integTestImplementation(project(":logging"))
     integTestImplementation(project(":coreApi"))
@@ -128,10 +137,16 @@ ext {
         into('docs') {
             from configurations.gradleFullDocs
         }
-        into('samples') {
-            from configurations.gradleSamples
-            exclude '**/*.out'
-            exclude '**/*.sample.conf*'
+    }
+
+    docsDistImage = copySpec {
+        from("$rootDir/LICENSE")
+        from('src/toplevel')
+        into('docs') {
+            from configurations.gradleFullDocs
+            into('samples') {
+                from configurations.gradleSamples
+            }
         }
     }
 }
@@ -178,6 +193,17 @@ def srcZip = tasks.register("srcZip", Zip) {
             exclude '**/.gradle/'
         }
     }
+}
+
+def docsZip = tasks.register("docsZip", Zip) {
+    archiveClassifier.set('docs')
+    into(zipRootFolder) {
+        with docsDistImage
+    }
+}
+
+tasks.register("buildDists") {
+    dependsOn(allZip, binZip, srcZip, docsZip)
 }
 
 tasks.register("outputsZip", Zip) {

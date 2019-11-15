@@ -80,7 +80,7 @@ abstract class AbstractSmokeTest extends Specification {
         // https://developer.android.com/studio/releases/build-tools
         static androidTools = "29.0.2"
         // https://developer.android.com/studio/releases/gradle-plugin
-        static androidGradle = Versions.of("3.4.2", "3.5.1", "3.6.0-beta01")
+        static androidGradle = Versions.of("3.4.2", "3.5.2", "3.6.0-beta03")
 
         // https://search.maven.org/search?q=g:org.jetbrains.kotlin%20AND%20a:kotlin-project&core=gav
         static kotlin = Versions.of('1.3.21', '1.3.31', '1.3.41', '1.3.50')
@@ -158,7 +158,7 @@ abstract class AbstractSmokeTest extends Specification {
     }
 
     GradleRunner runner(String... tasks) {
-        DefaultGradleRunner gradleRunner = GradleRunner.create()
+        GradleRunner gradleRunner = GradleRunner.create()
             .withGradleInstallation(IntegrationTestBuildContext.INSTANCE.gradleHomeDir)
             .withTestKitDir(IntegrationTestBuildContext.INSTANCE.gradleUserHomeDir)
             .withProjectDir(testProjectDir.root)
@@ -240,8 +240,12 @@ abstract class AbstractSmokeTest extends Specification {
             if (remainingWarnings.remove(line)) {
                 return
             }
-            assert !line.contains("deprecated"), "Found an unexpected deprecation warning on line ${lineIndex + 1}: $line"
+            assert !line.contains("has been deprecated and is scheduled to be removed in Gradle"), "Found an unexpected deprecation warning on line ${lineIndex + 1}: $line"
         }
         assert remainingWarnings.empty, "Expected ${remainingWarnings.size()} deprecation warnings:\n${remainingWarnings.collect { " - $it" }.join("\n")}"
+    }
+
+    void copyRemoteProject(String remoteProject, File targetDir) {
+        new TestFile(new File("build/$remoteProject")).copyTo(targetDir)
     }
 }

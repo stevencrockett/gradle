@@ -181,7 +181,8 @@ class DefaultInstantExecution internal constructor(
     fun instantExecutionReport() = InstantExecutionReport(
         reportOutputDir,
         logger,
-        maxProblems()
+        maxProblems(),
+        failOnProblems()
     )
 
     private
@@ -205,6 +206,7 @@ class DefaultInstantExecution internal constructor(
     fun readContextFor(decoder: KryoBackedDecoder) = DefaultReadContext(
         codecs.userTypesCodec,
         decoder,
+        service(),
         beanConstructors,
         logger
     )
@@ -227,6 +229,7 @@ class DefaultInstantExecution internal constructor(
             isolatableFactory = service(),
             valueSnapshotter = service(),
             fileCollectionFingerprinterRegistry = service(),
+            buildServiceRegistry = service(),
             isolatableSerializerRegistry = service(),
             actionScheme = service(),
             parameterScheme = service(),
@@ -323,13 +326,19 @@ class DefaultInstantExecution internal constructor(
     // Skip instant execution for buildSrc for now. Should instead collect up the inputs of its tasks and treat as task graph cache inputs
     private
     val isInstantExecutionEnabled: Boolean
-        get() = systemProperty(SystemProperties.isEnabled) != null && !host.currentBuild.buildSrc
+        get() = systemProperty(SystemProperties.isEnabled)?.toBoolean() ?: false && !host.currentBuild.buildSrc
 
     private
     fun maxProblems(): Int =
         systemProperty(SystemProperties.maxProblems)
             ?.let(Integer::valueOf)
             ?: 512
+
+    private
+    fun failOnProblems(): Boolean =
+        systemProperty(SystemProperties.failOnProblems)
+            ?.toBoolean()
+            ?: false
 
     private
     fun systemProperty(propertyName: String) =

@@ -40,7 +40,7 @@ class PerformanceTestBuildTypeTest {
                 specificBuilds = listOf(
                         SpecificBuild.BuildDistributions,
                         SpecificBuild.Gradleception,
-                        SpecificBuild.SmokeTests),
+                        SpecificBuild.SmokeTestsMinJavaVersion),
                 functionalTests = listOf(
                         TestCoverage(1, TestType.platform, Os.linux, JvmVersion.java8),
                         TestCoverage(2, TestType.platform, Os.windows, JvmVersion.java11, vendor = JvmVendor.openjdk)),
@@ -65,6 +65,7 @@ class PerformanceTestBuildTypeTest {
                 "-Porg.gradle.performance.db.password=%performance.db.password.tcagent%",
                 "-PteamCityToken=%teamcity.user.bot-gradle.token%",
                 "-PtestJavaHome=%linux.java8.oracle.64bit%",
+                "-Dorg.gradle.workers.max=%maxParallelForks%",
                 "-PmaxParallelForks=%maxParallelForks%",
                 "-s",
                 "--daemon",

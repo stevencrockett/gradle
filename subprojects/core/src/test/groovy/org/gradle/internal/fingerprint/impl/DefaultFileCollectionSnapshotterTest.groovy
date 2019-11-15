@@ -30,8 +30,8 @@ import org.gradle.api.resources.ResourceException
 import org.gradle.api.resources.internal.LocalResourceAdapter
 import org.gradle.api.tasks.util.PatternFilterable
 import org.gradle.internal.Factory
-import org.gradle.internal.snapshot.DirectorySnapshot
-import org.gradle.internal.snapshot.FileSystemLocationSnapshot
+import org.gradle.internal.snapshot.CompleteDirectorySnapshot
+import org.gradle.internal.snapshot.CompleteFileSystemLocationSnapshot
 import org.gradle.internal.snapshot.FileSystemSnapshot
 import org.gradle.internal.snapshot.FileSystemSnapshotVisitor
 import org.gradle.test.fixtures.file.TestFile
@@ -215,8 +215,7 @@ class DefaultFileCollectionSnapshotterTest extends Specification {
 
     void assertEmptyTree(FileCollection fileCollection) {
         def snapshots = snapshotter.snapshot((FileCollectionInternal) fileCollection)
-        assert snapshots.size() == 1
-        assert snapshots[0] == FileSystemSnapshot.EMPTY
+        assert snapshots.size() == 0
         assert fileCollection.files.empty
     }
 
@@ -239,7 +238,7 @@ class DefaultFileCollectionSnapshotterTest extends Specification {
         int count = 0
         tree.accept(new FileSystemSnapshotVisitor() {
             @Override
-            boolean preVisitDirectory(DirectorySnapshot directorySnapshot) {
+            boolean preVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
                 if (rootPath == null) {
                     rootPath = directorySnapshot.absolutePath
                 }
@@ -248,12 +247,12 @@ class DefaultFileCollectionSnapshotterTest extends Specification {
             }
 
             @Override
-            void visitFile(FileSystemLocationSnapshot fileSnapshot) {
+            void visitFile(CompleteFileSystemLocationSnapshot fileSnapshot) {
                 count++
             }
 
             @Override
-            void postVisitDirectory(DirectorySnapshot directorySnapshot) {
+            void postVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
             }
         })
         return [rootPath, count]

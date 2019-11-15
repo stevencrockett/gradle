@@ -34,6 +34,7 @@ import org.gradle.api.internal.file.collections.DirectoryFileTreeFactory
 import org.gradle.api.internal.project.ProjectStateRegistry
 import org.gradle.api.invocation.Gradle
 import org.gradle.api.model.ObjectFactory
+import org.gradle.api.services.internal.BuildServiceRegistryInternal
 import org.gradle.api.tasks.TaskContainer
 import org.gradle.api.tasks.util.internal.PatternSpecFactory
 import org.gradle.execution.plan.TaskNodeFactory
@@ -59,7 +60,6 @@ import org.gradle.internal.serialize.BaseSerializerFactory.LONG_SERIALIZER
 import org.gradle.internal.serialize.BaseSerializerFactory.PATH_SERIALIZER
 import org.gradle.internal.serialize.BaseSerializerFactory.SHORT_SERIALIZER
 import org.gradle.internal.serialize.BaseSerializerFactory.STRING_SERIALIZER
-import org.gradle.internal.serialize.SetSerializer
 import org.gradle.internal.snapshot.ValueSnapshotter
 import org.gradle.process.ExecOperations
 import org.gradle.process.internal.ExecActionFactory
@@ -85,15 +85,13 @@ class Codecs(
     isolatableFactory: IsolatableFactory,
     valueSnapshotter: ValueSnapshotter,
     fileCollectionFingerprinterRegistry: FileCollectionFingerprinterRegistry,
+    buildServiceRegistry: BuildServiceRegistryInternal,
     isolatableSerializerRegistry: IsolatableSerializerRegistry,
     parameterScheme: ArtifactTransformParameterScheme,
     actionScheme: ArtifactTransformActionScheme,
     attributesFactory: ImmutableAttributesFactory,
     transformListener: ArtifactTransformListener
 ) {
-
-    private
-    val fileSetSerializer = SetSerializer(FILE_SERIALIZER)
 
     val userTypesCodec = BindingsBackedCodec {
 
@@ -144,14 +142,16 @@ class Codecs(
         bind(DirectoryPropertyCodec(filePropertyFactory))
         bind(RegularFilePropertyCodec(filePropertyFactory))
         bind(PropertyCodec)
+        bind(BuildServiceProviderCodec(buildServiceRegistry))
         bind(ProviderCodec)
 
         bind(ListenerBroadcastCodec(listenerManager))
         bind(LoggerCodec)
 
-        bind(FileTreeCodec(fileSetSerializer, directoryFileTreeFactory))
+        bind(FileTreeCodec(directoryFileTreeFactory))
         bind(ConfigurableFileCollectionCodec(fileCollectionFactory))
         bind(FileCollectionCodec(fileCollectionFactory))
+        bind(PatternSetCodec)
 
         bind(ClosureCodec)
         bind(GroovyMetaClassCodec)

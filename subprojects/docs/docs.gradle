@@ -28,12 +28,15 @@ import org.gradle.gradlebuild.ProjectGroups
 import org.gradle.gradlebuild.PublicApi
 import org.gradle.gradlebuild.docs.RenderMarkdownTask
 import org.gradle.gradlebuild.unittestandcompile.ModuleType
+import org.gradle.samples.Sample
+import org.asciidoctor.gradle.AsciidoctorTask
 
 plugins {
     id 'java-library'
     id 'gradlebuild.jsoup'
     id 'javascript-base'
     id 'org.asciidoctor.convert'
+    id 'org.gradle.samples' version "0.15.22"
 }
 
 repositories {
@@ -123,29 +126,11 @@ ext {
     userguideSinglePageOutputDir = new File(buildDir, 'userguideSinglePage')
     dslSrcDir = new File(srcDocsDir, 'dsl')
     docsDir = file("$buildDir/docs")
+    samplesDir = new File(buildDir, "gradle-samples")
     userguideDir = new File(docsDir, 'userguide')
     distDocsDir = new File(buildDir, 'distDocs')
-    samplesDir = file("$buildDir/samples")
     docbookSrc = new File(project.buildDir, 'src')
     samplesSrcDir = file('src/samples')
-}
-
-configurations {
-    gradleSamplesElements {
-        outgoing.artifact(samplesDir) {
-            builtBy 'samples'
-        }
-    }
-    gradleFullDocsElements {
-        outgoing.artifact(docsDir) {
-            builtBy 'javadocAll', 'userguide', 'dslHtml', 'releaseNotes'
-        }
-    }
-    gradleGettingStartedElements {
-        outgoing.artifact(distDocsDir) {
-            builtBy 'distDocs'
-        }
-    }
 }
 
 def configureCss = tasks.register("configureCss") {
@@ -167,21 +152,6 @@ def css = tasks.register("css", Sync) {
     include "*.svg"
 }
 
-artifacts {
-    // declare that the generated css directory is an output of cssElements
-    cssElements file: css.get().destinationDir, builtBy: css
-}
-
-// TODO This is a hack pending a solution to https://github.com/gradle/gradle/issues/4612
-// Don't publish the CSS artifacts when calling uploadArchives
-afterEvaluate {
-    def notCssElements = configurations.archives.artifacts.findAll { !(it in configurations.cssElements.artifacts) }
-    configurations.archives.artifacts.clear()
-    artifacts {
-        archives notCssElements
-    }
-}
-
 ext.cssFiles = fileTree(css.map { it.destinationDir }) {
     builtBy css
 }
@@ -193,14 +163,7 @@ def imageFiles = fileTree(userguideSrcDir) {
 }
 def resourceFiles = imageFiles + cssFiles
 
-def samples = tasks.register("samples", Sync) {
-    from samplesSrcDir
-    into samplesDir
 
-    exclude '**/readme.xml'
-    exclude '**/build/**'
-    exclude '**/.gradle/**'
-}
 
 tasks.register("userguideStyleSheets", Sync) {
     File stylesheetsDir = new File(srcDocsDir, 'stylesheets')
@@ -281,7 +244,7 @@ def dslHtml = tasks.register("dslHtml", Docbook2Xhtml) {
 }
 
 def userguideFlattenSources = tasks.register("userguideFlattenSources", Sync) {
-    dependsOn css, samples, defaultImports
+    dependsOn css, defaultImports
     finalizedBy("checkDeadInternalLinks")
 
     duplicatesStrategy = DuplicatesStrategy.FAIL
@@ -432,7 +395,7 @@ tasks.withType(CacheableAsciidoctorTask).configureEach {
         guidesUrl           : 'https://guides.gradle.org',
         gradleVersion       : version,
         samplesPath         : "samples",
-        'samples-dir'       : 'src/samples'
+        'samples-dir'       : 'src/samples'  // Used by SampleIncludeProcessor from `gradle/dotorg-docs`
 }
 
 def userguideMultiPage = tasks.register("userguideMultiPage", CacheableAsciidoctorTask) {
@@ -448,12 +411,7 @@ def userguideMultiPage = tasks.register("userguideMultiPage", CacheableAsciidoct
 
     backends = ['html5']
 
-    attributes icons        : null,
-        'note-caption'      : '&#10024;',
-        'tip-caption'       : '&#128161;',
-        'important-caption' : '&#10071;️',
-        'caution-caption'   : '&#9888;',
-        'warning-caption'   : '&#9888;',
+    attributes icons        : 'font',
         'source-highlighter': 'prettify',
         toc                 : 'auto',
         toclevels           : 1,
@@ -554,12 +512,6 @@ tasks.register("docs") {
     group = 'documentation'
 }
 
-tasks.register("docsZip", Zip) {
-    // TODO: Reduce duplication
-    from(docsDir)
-    dependsOn 'javadocAll', 'userguide', 'dslHtml', 'releaseNotes'
-}
-
 def checkDeadInternalLinks = tasks.register("checkDeadInternalLinks", org.gradle.gradlebuild.docs.FindBrokenInternalLinks) {
     dependsOn(userguideFlattenSources)
     inputDirectory.set(userguideFlattenSources.get().destinationDir)
@@ -567,4 +519,270 @@ def checkDeadInternalLinks = tasks.register("checkDeadInternalLinks", org.gradle
 
 tasks.named("check") {
     dependsOn(checkDeadInternalLinks)
+}
+
+def asciidoctorTaskConfigurator = { AsciidoctorTask task ->
+    task.options doctype: 'book'
+
+    task.inputs.file("$srcDocsDir/css/manual.css")
+            .withPropertyName("manual")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    task.inputs.dir(file("src/main/resources"))
+            .withPropertyName("resources")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+
+    task.attributes stylesdir: file('src/docs/css/').absolutePath,
+            stylesheet: 'manual.css',
+            nofooter: true,
+            sectanchors: true,
+            sectlinks: true,
+            linkattrs: true
+}
+
+tasks.withType(AsciidoctorTask).configureEach {
+    if (name == 'asciidocSampleIndex') {
+        asciidoctorTaskConfigurator(it)
+    }
+}
+
+samples.configureEach { sample ->
+    sample.asciidoctorTask.configure(asciidoctorTaskConfigurator)
+
+    sample.asciidoctorTask.configure { task ->
+        task.attributes.put('docinfodir', "${buildDir}/tmp/${task.name}".toString())
+        task.attributes.put('docinfo', 'private-head')
+        task.attributes.put('outfilesuffix', '.html')
+        task.attributes.put('userManualPath', '../../userguide')
+        doFirst {
+            new File(temporaryDir, 'README-docinfo.html').text = """<meta name="adoc-src-path" content="/../../samples${sample.readMeFile.get().asFile.path - samplesSrcDir.path}">"""
+        }
+    }
+
+    sample.gradleVersion = project.provider { project.version.toString() }
+}
+
+def templateDir = file("src/samples/next-gen/templates")
+def installSourceFromTemplate(Sample sample, Closure action) {
+    def installTask = tasks.register("install${sample.name.capitalize()}SourceFromTemplates", Sync, action)
+    installTask.configure {
+        destinationDir = temporaryDir
+    }
+    return project.files(installTask)
+}
+
+samples {
+    groovyBasicApplication {
+        sampleDirectory = file("src/samples/next-gen/groovy/basic-application")
+        description = "Demonstrate how to build a basic Groovy application"
+        def sourceFiles = installSourceFromTemplate(it) {
+            from("$templateDir/groovy-basic-application")
+            from("$templateDir/groovy-list-library")
+            from("$templateDir/groovy-utilities-library")
+        }
+        archiveContent.from sourceFiles
+        exemplar.source {
+            from(sourceFiles) { into('groovy') }
+            from(sourceFiles) { into('kotlin') }
+        }
+    }
+    groovyBasicLibrary {
+        sampleDirectory = file("src/samples/next-gen/groovy/basic-library")
+        description = "Demonstrate how to build a basic Groovy library"
+        def sourceFiles = installSourceFromTemplate(it) {
+            from("$templateDir/groovy-list-library")
+            from("$templateDir/groovy-utilities-library")
+        }
+        archiveContent.from sourceFiles
+        exemplar.source {
+            from(sourceFiles) { into('groovy') }
+            from(sourceFiles) { into('kotlin') }
+        }
+    }
+    groovyTransitiveDependencies {
+        sampleDirectory = file("src/samples/next-gen/groovy/transitive-dependencies")
+        description = "Demonstrate how transitive dependencies work with Groovy projects"
+        def sourceFiles = installSourceFromTemplate(it) {
+            from("$templateDir/groovy-basic-application") { into("application") }
+            from("$templateDir/groovy-list-library") { into("list") }
+            from("$templateDir/groovy-utilities-library") { into("utilities") }
+        }
+        archiveContent.from sourceFiles
+        exemplar.source {
+            from(sourceFiles) { into('groovy') }
+            from(sourceFiles) { into('kotlin') }
+        }
+    }
+    groovyComponentsWithSpockTests {
+        sampleDirectory = file("src/samples/next-gen/groovy/components-with-spock-tests")
+        description = "Demonstrate how to test Groovy components using Spock framework"
+        def sourceFiles = installSourceFromTemplate(it) {
+            from("$templateDir/groovy-basic-application") { into("application") }
+            from("$templateDir/groovy-spock-test-for-application") { into("application") }
+            from("$templateDir/groovy-list-library") { into("library") }
+            from("$templateDir/groovy-spock-test-for-list-library") { into("library") }
+            from("$templateDir/groovy-utilities-library") { into("library") }
+        }
+        archiveContent.from sourceFiles
+        exemplar.source {
+            from(sourceFiles) { into('groovy') }
+            from(sourceFiles) { into('kotlin') }
+        }
+    }
+    groovyLibraryPublishing {
+        sampleDirectory = file("src/samples/next-gen/groovy/library-publishing")
+        description = "Demonstrate how to publish a Groovy library to a binary repository"
+        def sourceFiles = installSourceFromTemplate(it) {
+            from("$templateDir/groovy-list-library")
+            from("$templateDir/groovy-utilities-library")
+        }
+        archiveContent.from sourceFiles
+        exemplar.source {
+            from(sourceFiles) { into('groovy') }
+            from(sourceFiles) { into('kotlin') }
+        }
+    }
+
+    springBoot {
+        sampleDirectory = file("src/samples/next-gen/spring-boot")
+        description = "Demonstrate a simple Spring Boot application in Gradle"
+        def sourceFiles = installSourceFromTemplate(it) {
+            from("$templateDir/spring-boot")
+        }
+        archiveContent.from sourceFiles
+        exemplar.source {
+            from(sourceFiles) { into('groovy') }
+            from(sourceFiles) { into('kotlin') }
+        }
+    }
+
+    javaBasicApplication {
+        sampleDirectory = file("src/samples/next-gen/java/basic-application")
+        description = "Demonstrate how to build a basic Java application"
+        def sourceFiles = installSourceFromTemplate(it) {
+            from("$templateDir/java-basic-application")
+            from("$templateDir/java-list-library")
+            from("$templateDir/java-utilities-library")
+        }
+        archiveContent.from sourceFiles
+        exemplar.source {
+            from(sourceFiles) { into('groovy') }
+            from(sourceFiles) { into('kotlin') }
+        }
+    }
+    javaBasicLibrary {
+        sampleDirectory = file("src/samples/next-gen/java/basic-library")
+        description = "Demonstrate how to build a basic Java library"
+        def sourceFiles = installSourceFromTemplate(it) {
+            from("$templateDir/java-list-library")
+            from("$templateDir/java-utilities-library")
+        }
+        archiveContent.from sourceFiles
+        exemplar.source {
+            from(sourceFiles) { into('groovy') }
+            from(sourceFiles) { into('kotlin') }
+        }
+    }
+    javaTransitiveDependencies {
+        sampleDirectory = file("src/samples/next-gen/java/transitive-dependencies")
+        description = "Demonstrate how transitive dependencies work with Java projects"
+        def sourceFiles = installSourceFromTemplate(it) {
+            from("$templateDir/java-basic-application") { into("application") }
+            from("$templateDir/java-list-library") { into("list") }
+            from("$templateDir/java-utilities-library") { into("utilities") }
+        }
+        archiveContent.from sourceFiles
+        exemplar.source {
+            from(sourceFiles) { into('groovy') }
+            from(sourceFiles) { into('kotlin') }
+        }
+    }
+    javaComponentsWithSpockTests {
+        sampleDirectory = file("src/samples/next-gen/java/components-with-spock-tests")
+        description = "Demonstrate how to test Java components using Spock framework"
+        def sourceFiles = installSourceFromTemplate(it) {
+            from("$templateDir/java-basic-application") { into("application") }
+            from("$templateDir/groovy-spock-test-for-application") { into("application") }
+            from("$templateDir/java-list-library") { into("library") }
+            from("$templateDir/groovy-spock-test-for-list-library") { into("library") }
+            from("$templateDir/java-utilities-library") { into("library") }
+        }
+        archiveContent.from sourceFiles
+        exemplar.source {
+            from(sourceFiles) { into('groovy') }
+            from(sourceFiles) { into('kotlin') }
+        }
+    }
+    javaComponentsWithJUnit4Tests {
+        sampleDirectory = file("src/samples/next-gen/java/components-with-junit-4-tests")
+        displayName = "Java Components With JUnit 4 Tests"
+        description = "Demonstrate how to test Java components using JUnit 4"
+        def sourceFiles = installSourceFromTemplate(it) {
+            from("$templateDir/java-basic-application") { into("application") }
+            from("$templateDir/java-junit4-test-for-application") { into("application") }
+            from("$templateDir/java-list-library") { into("library") }
+            from("$templateDir/java-junit4-test-for-list-library") { into("library") }
+            from("$templateDir/java-utilities-library") { into("library") }
+        }
+        archiveContent.from sourceFiles
+        exemplar.source {
+            from(sourceFiles) { into('groovy') }
+            from(sourceFiles) { into('kotlin') }
+        }
+    }
+    javaLibraryPublishing {
+        sampleDirectory = file("src/samples/next-gen/java/library-publishing")
+        description = "Demonstrate how to publish a Java library to a binary repository"
+        def sourceFiles = installSourceFromTemplate(it) {
+            from("$templateDir/java-list-library")
+            from("$templateDir/java-utilities-library")
+        }
+        archiveContent.from sourceFiles
+        exemplar.source {
+            from(sourceFiles) { into('groovy') }
+            from(sourceFiles) { into('kotlin') }
+        }
+    }
+}
+
+tasks.register("publishedSamples") {
+    dependsOn "asciidocSampleIndex"
+    dependsOn {
+        project.extensions.samples.collect { "assemble${it.name.capitalize()}Sample" }
+    }
+}
+
+
+// Publications for the docs subproject:
+
+configurations {
+    gradleSamplesElements {
+        outgoing.artifact(samplesDir) {
+            builtBy 'publishedSamples'
+        }
+    }
+    gradleFullDocsElements {
+        outgoing.artifact(docsDir) {
+            builtBy 'javadocAll', 'userguide', 'dslHtml', 'releaseNotes'
+        }
+    }
+    gradleGettingStartedElements {
+        outgoing.artifact(distDocsDir) {
+            builtBy 'distDocs'
+        }
+    }
+}
+
+artifacts {
+    // declare that the generated css directory is an output of cssElements
+    cssElements file: css.get().destinationDir, builtBy: css
+}
+
+// TODO This is a hack pending a solution to https://github.com/gradle/gradle/issues/4612
+// Don't publish the CSS artifacts when calling uploadArchives
+afterEvaluate {
+    def notCssElements = configurations.archives.artifacts.findAll { !(it in configurations.cssElements.artifacts) }
+    configurations.archives.artifacts.clear()
+    artifacts {
+        archives notCssElements
+    }
 }

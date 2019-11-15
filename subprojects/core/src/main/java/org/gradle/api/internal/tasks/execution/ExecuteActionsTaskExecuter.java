@@ -124,6 +124,7 @@ public class ExecuteActionsTaskExecuter implements TaskExecuter {
     private final ReservedFileSystemLocationRegistry reservedFileSystemLocationRegistry;
     private final EmptySourceTaskSkipper emptySourceTaskSkipper;
     private final FileCollectionFactory fileCollectionFactory;
+    private final boolean fineGrainedInvalidationEnabled = Boolean.getBoolean("org.gradle.experimental.fine.grained.invalidation");
 
     public ExecuteActionsTaskExecuter(
         boolean buildCacheEnabled,
@@ -324,7 +325,7 @@ public class ExecuteActionsTaskExecuter implements TaskExecuter {
                 if (!(property instanceof CacheableOutputFilePropertySpec)) {
                     throw new IllegalStateException("Non-cacheable property: " + property);
                 }
-                File cacheRoot = ((CacheableOutputFilePropertySpec) property).getOutputFile();
+                File cacheRoot = property.getOutputFile();
                 if (cacheRoot == null) {
                     continue;
                 }
@@ -352,7 +353,14 @@ public class ExecuteActionsTaskExecuter implements TaskExecuter {
 
         @Override
         public Optional<? extends Iterable<String>> getChangingOutputs() {
-            return Optional.empty();
+            if (!fineGrainedInvalidationEnabled) {
+                return Optional.empty();
+            }
+            ImmutableList.Builder<String> builder = ImmutableList.builder();
+            visitOutputProperties((propertyName, type, root) -> builder.add(root.getAbsolutePath()));
+            context.getTaskProperties().getDestroyableFiles().forEach(file -> builder.add(file.getAbsolutePath()));
+            context.getTaskProperties().getLocalStateFiles().forEach(file -> builder.add(file.getAbsolutePath()));
+            return Optional.of(builder.build());
         }
 
         @Override

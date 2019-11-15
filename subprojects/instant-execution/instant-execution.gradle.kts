@@ -40,6 +40,9 @@ dependencies {
     testImplementation(testFixtures(project(":core")))
     testImplementation(testLibrary("mockito_kotlin2"))
 
+    testRuntimeOnly(project(":runtimeApiInfo"))
+    testRuntimeOnly(kotlin("reflect"))
+
     integTestImplementation(project(":toolingApi"))
 
     integTestImplementation(library("guava"))
@@ -54,8 +57,6 @@ dependencies {
     integTestRuntimeOnly(project(":testingJunitPlatform"))
     integTestRuntimeOnly(project(":kotlinDsl"))
     integTestRuntimeOnly(project(":kotlinDslProviderPlugins"))
-
-    testRuntimeOnly(kotlin("reflect"))
 }
 
 gradlebuildJava {
@@ -73,17 +74,16 @@ tasks {
      */
     val gitUri = "https://github.com/gradle/santa-tracker-android.git"
 
-    val javaBranch = "agp-3.6.0-java"
-    val kotlinBranch = "agp-3.6.0"
-
     val santaTrackerJava by registering(RemoteProject::class) {
         remoteUri.set(gitUri)
-        branch.set(javaBranch)
+        // From agp-3.6.0-java branch
+        ref.set("609eb93f19c8fc8c9d8a0cb130d620e31d47b9bc")
     }
 
     val santaTrackerKotlin by registering(RemoteProject::class) {
         remoteUri.set(gitUri)
-        branch.set(kotlinBranch)
+        // From agp-3.6.0 branch
+        ref.set("036aad22af993d2f564a6a15d6a7b9706ba37d8e")
     }
 
     if (BuildEnvironment.isCiServer) {

@@ -35,12 +35,12 @@ import org.gradle.internal.file.Deleter;
 import org.gradle.internal.hash.StreamHasher;
 import org.gradle.internal.instantiation.InstantiatorFactory;
 import org.gradle.internal.nativeintegration.filesystem.FileSystem;
+import org.gradle.internal.nativeintegration.network.HostnameLookup;
 import org.gradle.internal.operations.BuildOperationExecutor;
 import org.gradle.internal.os.OperatingSystem;
-import org.gradle.internal.remote.internal.inet.InetAddressFactory;
 import org.gradle.internal.scopeids.id.BuildInvocationScopeId;
 import org.gradle.internal.service.ServiceRegistry;
-import org.gradle.internal.snapshot.FileSystemMirror;
+import org.gradle.internal.vfs.VirtualFileSystem;
 import org.gradle.util.GradleVersion;
 import org.gradle.util.Path;
 
@@ -68,7 +68,7 @@ public class BuildCacheServices {
     OriginMetadataFactory createOriginMetadataFactory(
         BuildInvocationScopeId buildInvocationScopeId,
         GradleInternal gradleInternal,
-        InetAddressFactory inetAddressFactory
+        HostnameLookup hostnameLookup
     ) {
         File rootDir = gradleInternal.getRootProject().getRootDir();
         return new OriginMetadataFactory(
@@ -76,20 +76,18 @@ public class BuildCacheServices {
             SystemProperties.getInstance().getUserName(),
             OperatingSystem.current().getName(),
             buildInvocationScopeId.getId().asString(),
-            properties -> {
-                properties.setProperty(GRADLE_VERSION_KEY, GradleVersion.current().getVersion());
-            },
-            inetAddressFactory::getHostname
+            properties -> properties.setProperty(GRADLE_VERSION_KEY, GradleVersion.current().getVersion()),
+            hostnameLookup::getHostname
         );
     }
 
     BuildCacheCommandFactory createBuildCacheCommandFactory(
         BuildCacheEntryPacker packer,
         OriginMetadataFactory originMetadataFactory,
-        FileSystemMirror fileSystemMirror,
+        VirtualFileSystem virtualFileSystem,
         StringInterner stringInterner
     ) {
-        return new BuildCacheCommandFactory(packer, originMetadataFactory, fileSystemMirror, stringInterner);
+        return new BuildCacheCommandFactory(packer, originMetadataFactory, virtualFileSystem, stringInterner);
     }
 
     BuildCacheController createBuildCacheController(

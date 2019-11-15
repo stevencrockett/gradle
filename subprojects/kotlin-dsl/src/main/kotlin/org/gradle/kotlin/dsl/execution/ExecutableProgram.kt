@@ -20,6 +20,7 @@ import org.gradle.api.Project
 
 import org.gradle.internal.classpath.ClassPath
 import org.gradle.internal.hash.HashCode
+import org.gradle.kotlin.dsl.provider.CompiledScript
 
 import org.gradle.kotlin.dsl.support.KotlinScriptHost
 import org.gradle.kotlin.dsl.support.useToRun
@@ -78,7 +79,7 @@ abstract class ExecutableProgram {
             programKind: ProgramKind,
             programTarget: ProgramTarget,
             accessorsClassPath: ClassPath?
-        ): Class<*>
+        ): CompiledScript
 
         fun handleScriptException(
             exception: Throwable,
@@ -97,7 +98,7 @@ abstract class ExecutableProgram {
             scriptTemplateId: String,
             sourceHash: HashCode,
             accessorsClassPath: ClassPath?
-        ): Class<*>
+        ): CompiledScript
 
         fun loadScriptResource(resourcePath: String): String =
             javaClass.getResourceAsStream(resourcePath).bufferedReader().useToRun {

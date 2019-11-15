@@ -331,17 +331,22 @@ public class DefaultScriptCompilationHandler implements ScriptCompilationHandler
         }
 
         @Override
+        public void onReuse() {
+            if (scriptClass != null) {
+                // Recreate the script scope and ClassLoader, so that things that use scopes are notified that the scope exists
+                ClassLoader classLoader = getClassLoader();
+                assert classLoader == scriptClass.getClassLoader();
+            }
+        }
+
+        @Override
         public Class<? extends T> loadClass() {
             if (scriptClass == null) {
                 if (isEmpty && !hasMethods) {
                     throw new UnsupportedOperationException("Cannot load script that does nothing.");
                 }
                 try {
-                    ClassPath scriptClassPath = DefaultClassPath.of(scriptCacheDir);
-                    ClassLoaderScope scriptScope = targetScope.createChild("groovy-dsl:" + source.getFileName() + ":" + scriptBaseClass.getSimpleName())
-                        .local(scriptClassPath)
-                        .lock(parent -> new ScriptClassLoader(source, parent, scriptClassPath, sourceHashCode));
-                    ClassLoader loader = scriptScope.getLocalClassLoader();
+                    ClassLoader loader = getClassLoader();
                     scriptClass = loader.loadClass(source.getClassName()).asSubclass(scriptBaseClass);
                 } catch (Exception e) {
                     File expectedClassFile = new File(scriptCacheDir, source.getClassName() + ".class");
@@ -352,6 +357,14 @@ public class DefaultScriptCompilationHandler implements ScriptCompilationHandler
                 }
             }
             return scriptClass;
+        }
+
+        private ClassLoader getClassLoader() {
+            ClassPath scriptClassPath = DefaultClassPath.of(scriptCacheDir);
+            ClassLoaderScope scriptScope = targetScope.createChild("groovy-dsl:" + source.getFileName() + ":" + scriptBaseClass.getSimpleName())
+                .local(scriptClassPath)
+                .lock(spec -> new ScriptClassLoader(source, spec.right, spec.left, sourceHashCode));
+            return scriptScope.getLocalClassLoader();
         }
     }
 

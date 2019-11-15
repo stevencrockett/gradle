@@ -35,6 +35,11 @@ public abstract class AbstractClassLoaderScope implements ClassLoaderScope {
         this.listener = listener;
     }
 
+    @Override
+    public String toString() {
+        return id.getPath();
+    }
+
     /**
      * Unique identifier of this scope in the hierarchy.
      */

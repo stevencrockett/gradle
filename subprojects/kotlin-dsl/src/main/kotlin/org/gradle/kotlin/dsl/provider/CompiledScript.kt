@@ -16,6 +16,7 @@
 
 package org.gradle.kotlin.dsl.provider
 
+
 interface CompiledScript {
     val programFor: Class<*>
 

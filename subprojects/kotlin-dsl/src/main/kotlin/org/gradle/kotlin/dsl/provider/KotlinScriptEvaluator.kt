@@ -279,7 +279,8 @@ class StandardKotlinScriptEvaluator(
         private val className: String,
         private val accessorsClassPath: ClassPath?
     ) : CompiledScript {
-        private var loadedClass: Class<*>? = null
+        private
+        var loadedClass: Class<*>? = null
 
         override val programFor: Class<*>
             get() {
@@ -296,7 +297,8 @@ class StandardKotlinScriptEvaluator(
             }
         }
 
-        private fun prepareClassLoader(): ClassLoader {
+        private
+        fun prepareClassLoader(): ClassLoader {
             return classLoaderScope
                 .createChild(childScopeId)
                 .local(DefaultClassPath.of(location))
